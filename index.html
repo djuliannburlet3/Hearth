@@ -3,123 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Heart Animation Interactive - Three.js</title>
+    <title>Heart Animation - Tout-en-un</title>
     <style>
-        body {
+        /* CSS intégré pour le fond noir et l'affichage plein écran */
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
             overflow: hidden;
             background-color: #000000;
-            font-family: 'Arial', sans-serif;
-            user-select: none;
         }
-        #title {
-            position: absolute;
-            top: 10%;
-            width: 100%;
-            text-align: center;
-            color: #ffffff;
-            font-size: 32px;
-            font-style: italic;
-            font-weight: bold;
-            letter-spacing: 2px;
-            pointer-events: none; /* Permet de cliquer à travers le texte */
-            z-index: 10;
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
         }
     </style>
 </head>
 <body>
 
-    <div id="title">Heart Animation</div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
-        // Initialisation de la Scène et de la Caméra
+        // --- INITIALISATION DE LA SCÈNE ET DU RENDU ---
         const scene = new THREE.Scene();
-        
+
         const camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
             0.1,
             5000
         );
-        camera.position.z = 35; 
+        camera.position.z = 30; // Recule la caméra pour bien englober le cœur
 
-        // Initialisation du Rendu (Renderer)
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // AJOUT : Configuration des contrôles de la souris
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // Ajoute un effet d'inertie fluide
-        controls.dampingFactor = 0.05;
-        controls.enableZoom = true;    // Permet de zoomer avec la molette
+        // --- CONFIGURATION DU CŒUR EN PARTICULES ---
+        const numParticles = 60000; // Nombre total de points pour former le cœur
+        const positions = new Float32Array(numParticles * 3);
+        const colors = new Float32Array(numParticles * 3);
 
-        // Création des particules du Cœur
-        const particleCount = 20000; // Augmenté un peu pour densifier la 3D
-        const geometry = new THREE.BufferGeometry();
-        const positions = new Float32Array(particleCount * 3);
-        const colors = new Float32Array(particleCount * 3);
+        const baseColor = new THREE.Color("#ff4d79"); // Couleur rose/rouge scintillante
 
-        for (let i = 0; i < particleCount; i++) {
-            const t = Math.random() * Math.PI * 2;
-            
-            // Équation de base du cœur en 2D
+        // Génération de la forme géométrique à l'aide d'équations paramétriques
+        for (let i = 0; i < numParticles; i++) {
+            // Échantillonnage mathématique angulaire
+            const t = Math.PI * (Math.random() * 2 - 1);
+            const p = Math.PI * (Math.random() * 2 - 1);
+
+            // Formule mathématique du cœur en 3D
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-            
-            // On donne un peu plus de volume en Z (profondeur) pour que ce soit joli quand on tourne autour
-            const z = (Math.random() - 0.5) * 4; 
+            const z = (15 * Math.sin(p)) * (Math.abs(x) / 16); // Volume sur l'axe Z
 
-            // Dispersion (bruit) pour l'effet nuage de paillettes
-            const noise = 1.5;
-            positions[i * 3] = x + (Math.random() - 0.5) * noise;
-            positions[i * 3 + 1] = y + (Math.random() - 0.5) * noise;
-            positions[i * 3 + 2] = z + (Math.random() - 0.5) * noise;
+            // Ajout d'un léger bruit (dispersion) pour créer un effet de nuage/poussière d'étoile
+            const noise = 1.2;
+            positions[i * 3] = x * 0.8 + (Math.random() - 0.5) * noise;
+            positions[i * 3 + 1] = y * 0.8 + (Math.random() - 0.5) * noise;
+            positions[i * 3 + 2] = z * 0.8 + (Math.random() - 0.5) * noise;
 
-            // Couleurs dégradées de rose / fushia scintillantes
-            colors[i * 3] = 0.9 + Math.random() * 0.1;     // R
-            colors[i * 3 + 1] = 0.15 + Math.random() * 0.35; // V
-            colors[i * 3 + 2] = 0.55 + Math.random() * 0.35; // B
+            // Légères variations de couleur par particule pour donner de la profondeur
+            colors[i * 3] = baseColor.r + (Math.random() - 0.5) * 0.12;
+            colors[i * 3 + 1] = baseColor.g + (Math.random() - 0.5) * 0.12;
+            colors[i * 3 + 2] = baseColor.b + (Math.random() - 0.5) * 0.12;
         }
 
+        const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-        // Matériau des particules
+        // Création dynamique d'une texture de particule floutée et ronde (évite de charger une image externe)
+        const canvasTexture = document.createElement('canvas');
+        canvasTexture.width = 16; 
+        canvasTexture.height = 16;
+        const ctx = canvasTexture.getContext('2d');
+        const gradient = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+        gradient.addColorStop(0, 'rgba(255,255,255,1)');
+        gradient.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient; 
+        ctx.fillRect(0, 0, 16, 16);
+        const particleTexture = new THREE.CanvasTexture(canvasTexture);
+
+        // Matériau brillant et transparent pour les particules
         const material = new THREE.PointsMaterial({
-            size: 0.25,
+            size: 0.22,
             vertexColors: true,
             transparent: true,
-            opacity: 0.85,
-            blending: THREE.AdditiveBlending
+            blending: THREE.AdditiveBlending, // Effet de surbrillance magique quand les particules se superposent
+            depthWrite: false,
+            map: particleTexture
         });
 
-        const heartPoints = new THREE.Points(geometry, material);
-        scene.add(heartPoints);
+        const heart = new THREE.Points(geometry, material);
+        scene.add(heart);
 
-        // Boucle d'animation
+        // --- ANIMATION D'APPARITION PROGRESSIVE ---
+        let currentDrawCount = 0;
+        const growthSpeed = 300; // Nombre de particules ajoutées à chaque image (ajustez pour accélérer/ralentir)
+
         function animate() {
             requestAnimationFrame(animate);
 
-            // Met à jour les contrôles de la souris à chaque image
-            controls.update();
+            // Effet d'apparition progressive (le tracé se remplit petit à petit)
+            if (currentDrawCount < numParticles) {
+                currentDrawCount += growthSpeed;
+                if (currentDrawCount > numParticles) currentDrawCount = numParticles;
+                geometry.setDrawRange(0, currentDrawCount);
+            }
 
-            // Effet automatique de pulsation (battement)
-            const time = Date.now() * 0.001;
-            const scale = 1 + Math.sin(time * 4) * 0.05;
-            heartPoints.scale.set(scale, scale, scale);
+            // Légère rotation continue sur elle-même pour accentuer l'effet 3D
+            heart.rotation.y += 0.005;
+            heart.rotation.x = Math.sin(Date.now() * 0.001) * 0.08; // Léger balancement vertical
 
             renderer.render(scene, camera);
         }
 
+        // Lancement de l'animation
         animate();
 
-        // Gestion du redimensionnement de la fenêtre
+        // Réajustement si l'utilisateur redimensionne son navigateur
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
