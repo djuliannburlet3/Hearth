@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Heart Animation - Tout-en-un</title>
+    <title>Heart Animation - Dessin Progressif</title>
     <style>
-        /* CSS intégré pour le fond noir et l'affichage plein écran */
         * {
             margin: 0;
             padding: 0;
@@ -29,7 +28,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- INITIALISATION DE LA SCÈNE ET DU RENDU ---
         const scene = new THREE.Scene();
 
         const camera = new THREE.PerspectiveCamera(
@@ -38,48 +36,61 @@
             0.1,
             5000
         );
-        camera.position.z = 30; // Recule la caméra pour bien englober le cœur
+        camera.position.z = 25; // Zoom adapté pour le rendu à plat
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(window.devicePixelRatio > 1 ? 2 : 1);
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // --- CONFIGURATION DU CŒUR EN PARTICULES ---
-        const numParticles = 60000; // Nombre total de points pour former le cœur
+        // --- CONFIGURATION DES PARTICULES ---
+        const numParticles = 40000; 
         const positions = new Float32Array(numParticles * 3);
         const colors = new Float32Array(numParticles * 3);
+        const baseColor = new THREE.Color("#ff4d79"); 
 
-        const baseColor = new THREE.Color("#ff4d79"); // Couleur rose/rouge scintillante
+        // Tri et génération des particules pour qu'elles se dessinent dans l'ordre (du bas vers le haut)
+        const pointsData = [];
 
-        // Génération de la forme géométrique à l'aide d'équations paramétriques
         for (let i = 0; i < numParticles; i++) {
-            // Échantillonnage mathématique angulaire
+            // t va de -PI à PI pour parcourir le cœur
             const t = Math.PI * (Math.random() * 2 - 1);
-            const p = Math.PI * (Math.random() * 2 - 1);
 
-            // Formule mathématique du cœur en 3D
+            // Équations mathématiques du cœur en 2D
             const x = 16 * Math.pow(Math.sin(t), 3);
             const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
-            const z = (15 * Math.sin(p)) * (Math.abs(x) / 16); // Volume sur l'axe Z
+            
+            // On garde un très léger Z pour la superposition, mais pas de volume 3D
+            const z = (Math.random() - 0.5) * 0.5; 
 
-            // Ajout d'un léger bruit (dispersion) pour créer un effet de nuage/poussière d'étoile
-            const noise = 1.2;
-            positions[i * 3] = x * 0.8 + (Math.random() - 0.5) * noise;
-            positions[i * 3 + 1] = y * 0.8 + (Math.random() - 0.5) * noise;
-            positions[i * 3 + 2] = z * 0.8 + (Math.random() - 0.5) * noise;
+            // Ajout d'une dispersion (bruit) autour de la ligne du cœur
+            const noise = 1.5;
+            const finalX = x * 0.7 + (Math.random() - 0.5) * noise;
+            const finalY = y * 0.7 + (Math.random() - 0.5) * noise;
+            const finalZ = z;
 
-            // Légères variations de couleur par particule pour donner de la profondeur
-            colors[i * 3] = baseColor.r + (Math.random() - 0.5) * 0.12;
-            colors[i * 3 + 1] = baseColor.g + (Math.random() - 0.5) * 0.12;
-            colors[i * 3 + 2] = baseColor.b + (Math.random() - 0.5) * 0.12;
+            pointsData.push({ x: finalX, y: finalY, z: finalZ, t: t });
+        }
+
+        // On trie les points selon l'angle 't' pour que l'animation dessine les courbes de manière fluide
+        pointsData.sort((a, b) => a.t - b.t);
+
+        // Remplissage des tableaux de géométrie avec les données triées
+        for (let i = 0; i < numParticles; i++) {
+            positions[i * 3] = pointsData[i].x;
+            positions[i * 3 + 1] = pointsData[i].y;
+            positions[i * 3 + 2] = pointsData[i].z;
+
+            colors[i * 3] = baseColor.r + (Math.random() - 0.5) * 0.1;
+            colors[i * 3 + 1] = baseColor.g + (Math.random() - 0.5) * 0.1;
+            colors[i * 3 + 2] = baseColor.b + (Math.random() - 0.5) * 0.1;
         }
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-        // Création dynamique d'une texture de particule floutée et ronde (évite de charger une image externe)
+        // Texture floue pour les points lumineux
         const canvasTexture = document.createElement('canvas');
         canvasTexture.width = 16; 
         canvasTexture.height = 16;
@@ -91,12 +102,11 @@
         ctx.fillRect(0, 0, 16, 16);
         const particleTexture = new THREE.CanvasTexture(canvasTexture);
 
-        // Matériau brillant et transparent pour les particules
         const material = new THREE.PointsMaterial({
-            size: 0.22,
+            size: 0.25,
             vertexColors: true,
             transparent: true,
-            blending: THREE.AdditiveBlending, // Effet de surbrillance magique quand les particules se superposent
+            blending: THREE.AdditiveBlending,
             depthWrite: false,
             map: particleTexture
         });
@@ -104,31 +114,28 @@
         const heart = new THREE.Points(geometry, material);
         scene.add(heart);
 
-        // --- ANIMATION D'APPARITION PROGRESSIVE ---
+        // --- ANIMATION D'APPARITION (SANS ROTATION) ---
         let currentDrawCount = 0;
-        const growthSpeed = 300; // Nombre de particules ajoutées à chaque image (ajustez pour accélérer/ralentir)
+        const growthSpeed = 250; // Vitesse d'apparition (nombre de points par frame)
 
         function animate() {
             requestAnimationFrame(animate);
 
-            // Effet d'apparition progressive (le tracé se remplit petit à petit)
+            // Fait apparaître le tracé du cœur progressivement
             if (currentDrawCount < numParticles) {
                 currentDrawCount += growthSpeed;
                 if (currentDrawCount > numParticles) currentDrawCount = numParticles;
                 geometry.setDrawRange(0, currentDrawCount);
             }
 
-            // Légère rotation continue sur elle-même pour accentuer l'effet 3D
-            heart.rotation.y += 0.005;
-            heart.rotation.x = Math.sin(Date.now() * 0.001) * 0.08; // Léger balancement vertical
+            // AUCUNE ROTATION ICI : L'objet reste fixe face à la caméra
 
             renderer.render(scene, camera);
         }
 
-        // Lancement de l'animation
         animate();
 
-        // Réajustement si l'utilisateur redimensionne son navigateur
+        // Redimensionnement de l'écran
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
